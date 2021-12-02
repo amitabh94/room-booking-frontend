@@ -14,6 +14,7 @@ import {
   ModalContent,
   ModalHeader,
   ModalOverlay,
+  Select,
   Table,
   Tbody,
   Td,
@@ -26,8 +27,10 @@ import {
 } from "@chakra-ui/react";
 import { createBooking } from "./api/CreateBoking";
 import { cancelBooking } from "./api/CancelBooking";
-import { getRoomSlots } from "./api/GetRoomSlots";
+import { fetchRoomNames } from "./api/GetRoomNames";
 import { RoomStatus } from "./common/Entities";
+import { fetchTimeSlots } from "./api/GetTimeSlots";
+import { getRoomSlots } from "./api/GetRoomSlots";
 
 function App() {
   const {
@@ -42,14 +45,29 @@ function App() {
     onClose: onCancelBookingClose,
   } = useDisclosure();
 
-
-
   const [allRoomStatus, setallRoomStatus] = useState([]);
+  const [allTimeSlots, setallTimeSlots] = useState([]);
+  const [allRoomNames, setallRoomNames] = useState([]);
+
   useEffect(() => {
-    async function getRoomsStatus() {
+    async function getRoomStatus() {
       setallRoomStatus(await getRoomSlots());
     }
-    getRoomsStatus();
+    getRoomStatus();
+  }, []);
+
+  useEffect(() => {
+    async function getTimeSlots() {
+      setallTimeSlots(await fetchTimeSlots());
+    }
+    getTimeSlots();
+  }, []);
+
+  useEffect(() => {
+    async function getRoomNames() {
+      setallRoomNames(await fetchRoomNames());
+    }
+    getRoomNames();
   }, []);
 
   function ModalFormContent() {
@@ -59,32 +77,31 @@ function App() {
       formState: { errors, isSubmitting },
     } = useForm();
     const [registerErrorMessage, setRegisterErrorMessage] = useState("");
+    const [timeSlot, setTimeSlot] = useState(0);
+    const [roomName, setRoomName] = useState("");
     const toast = useToast();
     async function onSubmit(values: any) {
-      const response = await createBooking(
-        values.TimeSlot,
-        values.RoomName,
-        values.EmailId
-      );
+      const response = await createBooking(timeSlot, roomName, values.EmailId);
       console.log(response);
-      if(response.data){
-              if (response.data.booking_id) {
-        setRegisterErrorMessage(response.data.booking_id);
-        toast({
-          title: `Please copy and save this booking id for future modifications ${response.data.booking_id}`,
-          status: "success",
-          duration: 10000,
-          isClosable: true,
-        });
-      } else if (response.data.message) {
-        setRegisterErrorMessage(response.data.message);
-        toast({
-          title: response.data.message,
-          status: "error",
-          duration: 4000,
-          isClosable: true,
-        });
-      }} else {
+      if (response.data) {
+        if (response.data.booking_id) {
+          setRegisterErrorMessage(response.data.booking_id);
+          toast({
+            title: `Please copy and save this booking id for future modifications ${response.data.booking_id}`,
+            status: "success",
+            duration: 10000,
+            isClosable: true,
+          });
+        } else if (response.data.message) {
+          setRegisterErrorMessage(response.data.message);
+          toast({
+            title: response.data.message,
+            status: "error",
+            duration: 4000,
+            isClosable: true,
+          });
+        }
+      } else {
         setRegisterErrorMessage("Booking Unsuccessful! Please try again.");
         toast({
           title: "Booking Unsuccessful! Please try again.",
@@ -102,24 +119,30 @@ function App() {
         )}
         <FormControl isInvalid={errors.TimeSlot}>
           <FormLabel htmlFor="timeslot">Time Slot</FormLabel>
-          <Input
-            id="TimeSlot"
-            placeholder="Choose Time Slot"
-            {...register("TimeSlot", {
-              required: "This is required",
-            })}
-          />
+          <Select
+            placeholder="Select Time Slot"
+            onChange={(value) => {
+              setTimeSlot(Number(value.currentTarget.value));
+            }}
+          >
+            {allTimeSlots.map((slot: any) => (
+              <option value={slot.time_slot}>{slot.time_slot}</option>
+            ))}
+          </Select>
           {errors.TimeSlot && errors.TimeSlot.message}
         </FormControl>
         <FormControl isInvalid={errors.RoomName}>
           <FormLabel htmlFor="roomname">Room Name</FormLabel>
-          <Input
-            id="RoomName"
-            placeholder="Choose Room"
-            {...register("RoomName", {
-              required: "This is required",
-            })}
-          />
+          <Select
+            placeholder="Select Room"
+            onChange={(value) => {
+              setRoomName(value.currentTarget.value);
+            }}
+          >
+            {allRoomNames.map((room: any) => (
+              <option value={room.name}>{room.name}</option>
+            ))}
+          </Select>
           {errors.RoomName && errors.RoomName.message}
         </FormControl>
         <FormControl isInvalid={errors.emailId}>
@@ -181,24 +204,25 @@ function App() {
         values.BookingId,
         values.EmailId
       );
-      if(response.data){
-      if (response.data.status) {
-        setCancelErrorMessage(response.data.status);
-        toast({
-          title: `Booking has been successfully cancelled.`,
-          status: "success",
-          duration: 5000,
-          isClosable: true,
-        });
-      } else if (response.data.message) {
-        setCancelErrorMessage(response.data.message);
-        toast({
-          title: response.data.message,
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      }} else {
+      if (response.data) {
+        if (response.data.status) {
+          setCancelErrorMessage(response.data.status);
+          toast({
+            title: `Booking has been successfully cancelled.`,
+            status: "success",
+            duration: 5000,
+            isClosable: true,
+          });
+        } else if (response.data.message) {
+          setCancelErrorMessage(response.data.message);
+          toast({
+            title: response.data.message,
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+        }
+      } else {
         setCancelErrorMessage("Cancellation unsuccessful.Please try again!");
         toast({
           title: "Cancellation unsuccessful.Please try again!",
@@ -211,9 +235,7 @@ function App() {
 
     return (
       <form onSubmit={handleSubmit(onSubmit)}>
-        {cancelErrorMessage && (
-          <p className="error"> {cancelErrorMessage} </p>
-        )}
+        {cancelErrorMessage && <p className="error"> {cancelErrorMessage} </p>}
         <FormControl isInvalid={errors.BookingId}>
           <FormLabel htmlFor="bookingid">Booking ID</FormLabel>
           <Input
@@ -309,14 +331,12 @@ function App() {
 
   return (
     <div className="Room Booking System">
-
-
-          <h1>Room Availability</h1>
-          <Box overflowY="scroll" maxHeight="500px">
-            {RoomAvailability(allRoomStatus)}
-          </Box>
-          <Flex justifyContent="center" alignItems="center">
-          <VStack>
+      <h1>Room Availability</h1>
+      <Box overflowY="scroll" maxHeight="500px">
+        {RoomAvailability(allRoomStatus)}
+      </Box>
+      <Flex justifyContent="center" alignItems="center">
+        <VStack>
           <Box alignItems="center">
             {BookingModal()}
             <Button colorScheme="teal" size="md" onClick={onBookingOpen}>
@@ -337,16 +357,12 @@ function App() {
 }
 
 function getStatus(status: number): React.ReactNode {
-  let color:string;
-  if(status===0){
-    color = 'green.300'
-  }else{
-    color= 'red.300'
+  let color: string;
+  if (status === 0) {
+    color = "green.300";
+  } else {
+    color = "red.300";
   }
-  return(
-    <Td bgcolor={color}>{status===0?'Available':'Occupied'}</Td>
-  )
+  return <Td bgcolor={color}>{status === 0 ? "Available" : "Booked"}</Td>;
 }
 export default App;
-
-
